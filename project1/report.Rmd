@@ -4,7 +4,10 @@ author: "Falcons Group"
 urlcolor: blue
 date: "`r Sys.Date()`"
 output:
-  pdf_document: default
+  pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
   word_document: default
 ---
 
@@ -36,6 +39,8 @@ names(data) <- cols
 data <- data[, .(id, time, status, drug, age, serum_bilirubin)]
 data[, serum_cat := cut(serum_bilirubin, c(0, 1.1, 3.3, max(serum_bilirubin)))]
 ```
+
+\newpage
 
 # Standard Regression techniques questions
 
