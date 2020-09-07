@@ -19,25 +19,9 @@ knitr::opts_chunk$set(
   cache = FALSE,         # set to TRUE to save results from last compilation
   fig.align = "center"   # center figures
 )
-library(data.table)
-library(ggplot2)
+library(flexsurv)
 
 set.seed(1)             # make random results reproducible
-```
-
-```{r setup, include=FALSE}
-data <- fread("data.csv")
-
-cols <- c("id", "time", "status", "drug", "age", "sex", 
-          "is_ascites", "is_hept", "is_spiders", "is_edema", 
-          "serum_bilirubin", "serum_chol", "albumin", "urine_copper", 
-          "alk_phosphatase", "sgot", "triglicerides", "platelets", 
-          "prothrombin", "histologic_stage")
-
-names(data) <- cols
-
-data <- data[, .(id, time, status, drug, age, serum_bilirubin)]
-data[, serum_cat := cut(serum_bilirubin, c(0, 1.1, 3.3, max(serum_bilirubin)))]
 ```
 
 \newpage
@@ -58,16 +42,154 @@ data[, serum_cat := cut(serum_bilirubin, c(0, 1.1, 3.3, max(serum_bilirubin)))]
 * Dr. Blum wants to know how to derive the i) estimates ii) standard errors of the coefficients that R outputs from the regression. What is the procedure? How can Dr. Blum recreate them herself? Attach this techinical section as an appendix to the report.
 
 # Analysis of the linear regression
+## Data input and cleaning
+
+```{r}
+library(flexsurv)
+
+# Reading in data
+data <- read.table("data.csv", 
+                   quote="\"", comment.char="")
+
+# Renaming variables
+colnames(data) <- c("caseid", "time", "status", "drug", "age", "sex", "ascites",
+                    "hepatomegaly", "spiders", "edema", "bilirubin", "cholesterol",
+                    "albumin", "urine_copper", "alk_phosphatase", "sgot", 
+                    "triglicerides", "platelets", "prothrombin", "hist_stage")
+
+# Combining censored cases
+data$dead <- ifelse(data$status == 0 | data$status == 1, 0, 1)
+table(data$dead)
+
+# Creating catergorical factor for bilirubin
+data$bili_cat <- ifelse(data$bilirubin < 1.1, "< 1.1", 
+                        ifelse(data$bilirubin >= 1.1 & data$bilirubin <= 3.3, "1.1-3.3", ">3.3"))
+data$bili_cat <- factor(data$bili_cat, levels = c("< 1.1", "1.1-3.3", ">3.3"))
+table( data$bili_cat)
+
+# Creating age in years
+data$ageinyear <- data$age/365.25
+```
 
 ## Excluding censored observations
 
+### Regression on treatment (drug)
+
+```{r}
+# univariate analysis for the treatment (drug)
+summary(lm(time ~ drug, data = data[data$dead==1,]))
+```
+### Regression on age
+
+```{r}
+# univariate analysis for age
+summary(lm(time ~ ageinyear, data = data[data$dead==1,]))
+```
+### Regression on serum bilirubin
+
+```{r}
+# univariate analysis for serum bilirubin
+summary(lm(time ~ bili_cat, data = data[data$dead==1,]))
+```
+### Regression on all three covariates
+
+```{r}
+# multivariate analysis for all three covariates
+summary(lm(time ~ drug + ageinyear + bili_cat, data = data[data$dead==1,]))
+```
+
 ## Treating censored times as death times
 
+### Regression on treatment (drug)
+
+```{r}
+# univariate analysis for the treatment (drug)
+summary(lm(time ~ drug, data = data))
+```
+
+### Regression on age
+
+```{r}
+# univariate analysis for age
+summary(lm(time ~ ageinyear, data = data))
+```
+
+### Regression on serum bilirubin
+
+```{r}
+# univariate analysis for serum bilirubin
+summary(lm(time ~ bili_cat, data = data))
+```
+
+### Regression on all three covariates
+
+```{r}
+# multivariate analysis for all three covariates
+summary(lm(time ~ drug + ageinyear + bili_cat, data = data))
+```
+
 # Analysis of the logistic regression
+
+### Regression on treatment (drug)
+
+```{r}
+# univariate analysis for the treatment (drug)
+summary(glm(dead ~ drug, family = "binomial", data = data))
+```
+
+### Regression on age
+
+```{r}
+# univariate analysis for age
+summary(glm(dead ~ ageinyear, family = "binomial", data = data))
+```
+
+### Regression on serum bilirubin
+
+```{r}
+# univariate analysis for serum bilirubin
+summary(glm(dead ~ bili_cat, family = "binomial", data = data))
+```
+
+### Regression on all three covariates
+
+```{r}
+# multivariate analysis for all three covariates
+summary(glm(dead ~ drug + ageinyear + bili_cat, family = "binomial", data = data))
+```
 
 # Critique of Dr. Blum's analyses
 
 # Parametric survival analysis
+
+## Parametric survival analysis on drug
+
+```{r}
+# here we used library "flexsurv" for the analysis
+# univariate analysis for the treatment (drug)
+flexsurvreg(Surv(time, dead) ~ drug, data = data, dist = "Weibull")
+```
+
+## Parametric survival analysis on age
+
+```{r}
+# univariate analysis for age
+flexsurvreg(Surv(time, dead) ~ ageinyear, data = data, dist = "Weibull")
+```
+
+## Parametric survival analysis on serum bilirubin
+
+```{r}
+# univariate analysis for serum bilirubin
+flexsurvreg(Surv(time, dead) ~ bili_cat, data = data, dist = "Weibull")
+```
+
+## Parametric survival analysis on all three covariates
+
+```{r}
+# multivariate analysis for all three covariates
+flexsurvreg(Surv(time, dead) ~ drug + ageinyear + bili_cat, data = data, dist = "Weibull")
+```
 
 # Technical Appendix: How to derive coefficient estimates and standard errors from parametric survival analyses
 
