@@ -24,21 +24,6 @@ library(flexsurv)
 set.seed(1)             # make random results reproducible
 ```
 
-```{r setup, include=FALSE}
-data <- fread("data.csv")
-
-cols <- c("id", "time", "status", "drug", "age", "sex", 
-          "is_ascites", "is_hept", "is_spiders", "is_edema", 
-          "serum_bilirubin", "serum_chol", "albumin", "urine_copper", 
-          "alk_phosphatase", "sgot", "triglicerides", "platelets", 
-          "prothrombin", "histologic_stage")
-
-names(data) <- cols
-
-data <- data[, .(id, time, status, drug, age, serum_bilirubin)]
-data[, serum_cat := cut(serum_bilirubin, c(0, 1.1, 3.3, max(serum_bilirubin)))]
-```
-
 \newpage
 
 # Standard Regression techniques questions
@@ -57,11 +42,10 @@ data[, serum_cat := cut(serum_bilirubin, c(0, 1.1, 3.3, max(serum_bilirubin)))]
 * Dr. Blum wants to know how to derive the i) estimates ii) standard errors of the coefficients that R outputs from the regression. What is the procedure? How can Dr. Blum recreate them herself? Attach this techinical section as an appendix to the report.
 
 # Analysis of the linear regression
+## Data input and cleaning
 
-```{r, echo=TRUE, eval=TRUE}
+```{r}
 library(flexsurv)
-
-# Data input and cleaning
 
 # Reading in data
 data <- read.table("data.csv", 
@@ -89,66 +73,87 @@ data$ageinyear <- data$age/365.25
 
 ## Excluding censored observations
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on treatment (drug)
+
+```{r}
 # univariate analysis for the treatment (drug)
 summary(lm(time ~ drug, data = data[data$dead==1,]))
 ```
+### Regression on age
 
-```{r, echo=TRUE, eval=TRUE}
+```{r}
 # univariate analysis for age
 summary(lm(time ~ ageinyear, data = data[data$dead==1,]))
 ```
+### Regression on serum bilirubin
 
-```{r, echo=TRUE, eval=TRUE}
+```{r}
 # univariate analysis for serum bilirubin
 summary(lm(time ~ bili_cat, data = data[data$dead==1,]))
 ```
+### Regression on all three covariates
 
-```{r, echo=TRUE, eval=TRUE}
+```{r}
 # multivariate analysis for all three covariates
 summary(lm(time ~ drug + ageinyear + bili_cat, data = data[data$dead==1,]))
 ```
 
 ## Treating censored times as death times
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on treatment (drug)
+
+```{r}
 # univariate analysis for the treatment (drug)
 summary(lm(time ~ drug, data = data))
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on age
+
+```{r}
 # univariate analysis for age
 summary(lm(time ~ ageinyear, data = data))
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on serum bilirubin
+
+```{r}
 # univariate analysis for serum bilirubin
 summary(lm(time ~ bili_cat, data = data))
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on all three covariates
+
+```{r}
 # multivariate analysis for all three covariates
 summary(lm(time ~ drug + ageinyear + bili_cat, data = data))
 ```
 
 # Analysis of the logistic regression
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on treatment (drug)
+
+```{r}
 # univariate analysis for the treatment (drug)
 summary(glm(dead ~ drug, family = "binomial", data = data))
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on age
+
+```{r}
 # univariate analysis for age
 summary(glm(dead ~ ageinyear, family = "binomial", data = data))
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on serum bilirubin
+
+```{r}
 # univariate analysis for serum bilirubin
 summary(glm(dead ~ bili_cat, family = "binomial", data = data))
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+### Regression on all three covariates
+
+```{r}
 # multivariate analysis for all three covariates
 summary(glm(dead ~ drug + ageinyear + bili_cat, family = "binomial", data = data))
 ```
@@ -157,23 +162,31 @@ summary(glm(dead ~ drug + ageinyear + bili_cat, family = "binomial", data = data
 
 # Parametric survival analysis
 
-```{r, echo=TRUE, eval=TRUE}
+## Parametric survival analysis on drug
+
+```{r}
 # here we used library "flexsurv" for the analysis
 # univariate analysis for the treatment (drug)
 flexsurvreg(Surv(time, dead) ~ drug, data = data, dist = "Weibull")
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+## Parametric survival analysis on age
+
+```{r}
 # univariate analysis for age
 flexsurvreg(Surv(time, dead) ~ ageinyear, data = data, dist = "Weibull")
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+## Parametric survival analysis on serum bilirubin
+
+```{r}
 # univariate analysis for serum bilirubin
 flexsurvreg(Surv(time, dead) ~ bili_cat, data = data, dist = "Weibull")
 ```
 
-```{r, echo=TRUE, eval=TRUE}
+## Parametric survival analysis on all three covariates
+
+```{r}
 # multivariate analysis for all three covariates
 flexsurvreg(Surv(time, dead) ~ drug + ageinyear + bili_cat, data = data, dist = "Weibull")
 ```
