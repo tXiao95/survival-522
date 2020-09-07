@@ -19,8 +19,7 @@ knitr::opts_chunk$set(
   cache = FALSE,         # set to TRUE to save results from last compilation
   fig.align = "center"   # center figures
 )
-library(data.table)
-library(ggplot2)
+library(flexsurv)
 
 set.seed(1)             # make random results reproducible
 ```
@@ -59,15 +58,125 @@ data[, serum_cat := cut(serum_bilirubin, c(0, 1.1, 3.3, max(serum_bilirubin)))]
 
 # Analysis of the linear regression
 
+```{r, echo=TRUE, eval=TRUE}
+library(flexsurv)
+
+# Data input and cleaning
+
+# Reading in data
+data <- read.table("data.csv", 
+                   quote="\"", comment.char="")
+
+# Renaming variables
+colnames(data) <- c("caseid", "time", "status", "drug", "age", "sex", "ascites",
+                    "hepatomegaly", "spiders", "edema", "bilirubin", "cholesterol",
+                    "albumin", "urine_copper", "alk_phosphatase", "sgot", 
+                    "triglicerides", "platelets", "prothrombin", "hist_stage")
+
+# Combining censored cases
+data$dead <- ifelse(data$status == 0 | data$status == 1, 0, 1)
+table(data$dead)
+
+# Creating catergorical factor for bilirubin
+data$bili_cat <- ifelse(data$bilirubin < 1.1, "< 1.1", 
+                        ifelse(data$bilirubin >= 1.1 & data$bilirubin <= 3.3, "1.1-3.3", ">3.3"))
+data$bili_cat <- factor(data$bili_cat, levels = c("< 1.1", "1.1-3.3", ">3.3"))
+table( data$bili_cat)
+
+# Creating age in years
+data$ageinyear <- data$age/365.25
+```
+
 ## Excluding censored observations
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for the treatment (drug)
+summary(lm(time ~ drug, data = data[data$dead==1,]))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for age
+summary(lm(time ~ ageinyear, data = data[data$dead==1,]))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for serum bilirubin
+summary(lm(time ~ bili_cat, data = data[data$dead==1,]))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# multivariate analysis for all three covariates
+summary(lm(time ~ drug + ageinyear + bili_cat, data = data[data$dead==1,]))
+```
 
 ## Treating censored times as death times
 
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for the treatment (drug)
+summary(lm(time ~ drug, data = data))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for age
+summary(lm(time ~ ageinyear, data = data))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for serum bilirubin
+summary(lm(time ~ bili_cat, data = data))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# multivariate analysis for all three covariates
+summary(lm(time ~ drug + ageinyear + bili_cat, data = data))
+```
+
 # Analysis of the logistic regression
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for the treatment (drug)
+summary(glm(dead ~ drug, family = "binomial", data = data))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for age
+summary(glm(dead ~ ageinyear, family = "binomial", data = data))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for serum bilirubin
+summary(glm(dead ~ bili_cat, family = "binomial", data = data))
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# multivariate analysis for all three covariates
+summary(glm(dead ~ drug + ageinyear + bili_cat, family = "binomial", data = data))
+```
 
 # Critique of Dr. Blum's analyses
 
 # Parametric survival analysis
+
+```{r, echo=TRUE, eval=TRUE}
+# here we used library "flexsurv" for the analysis
+# univariate analysis for the treatment (drug)
+flexsurvreg(Surv(time, dead) ~ drug, data = data, dist = "Weibull")
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for age
+flexsurvreg(Surv(time, dead) ~ ageinyear, data = data, dist = "Weibull")
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# univariate analysis for serum bilirubin
+flexsurvreg(Surv(time, dead) ~ bili_cat, data = data, dist = "Weibull")
+```
+
+```{r, echo=TRUE, eval=TRUE}
+# multivariate analysis for all three covariates
+flexsurvreg(Surv(time, dead) ~ drug + ageinyear + bili_cat, data = data, dist = "Weibull")
+```
 
 # Technical Appendix: How to derive coefficient estimates and standard errors from parametric survival analyses
 
