@@ -20,7 +20,8 @@ knitr::opts_chunk$set(
   fig.align = "center"   # center figures
 )
 library(flexsurv)
-
+library(ggplot2)
+library(mice)
 set.seed(1)             # make random results reproducible
 ```
 
@@ -45,8 +46,6 @@ set.seed(1)             # make random results reproducible
 ## Data input and cleaning
 
 ```{r}
-library(flexsurv)
-
 # Reading in data
 data <- read.table("data.csv", 
                    quote="\"", comment.char="")
@@ -190,6 +189,23 @@ flexsurvreg(Surv(time, dead) ~ bili_cat, data = data, dist = "Weibull")
 # multivariate analysis for all three covariates
 flexsurvreg(Surv(time, dead) ~ drug + ageinyear + bili_cat, data = data, dist = "Weibull")
 ```
+
+## Checking Weibull distribution is a good fit with log-log plot
+
+```{r}
+# Create cumulative hazard
+data$ch <- nelsonaalen(data, time, dead)
+data$drug <- ifelse(data$drug == 1, "treatment", "placebo")
+ggplot(data, aes(log(time), log(ch))) + 
+  geom_point() + 
+  geom_smooth(method="lm") + 
+  facet_grid(drug ~ bili_cat) +
+  theme_bw() + 
+  ylab("Log Cumulative Hazard") + 
+  xlab("Log time (in days)") + 
+  ggtitle("Check fit data to Weibull Distribution")
+```
+The plot of log time against the log cumulative hazard is mostly linear in each of the treatment / serum bilirubin groups and deviates mostly at the earlier time points. Due to the linearity within each of the groups, we conclude the Weibull distribution is a good fit for this dataset. It is harder to visualize along with age (our third covariate), but based on this diagnostic it seems Weibull is a good fit regardless.
 
 # Technical Appendix: How to derive coefficient estimates and standard errors from parametric survival analyses
 
