@@ -1,0 +1,43 @@
+---
+title: "521project"
+output: pdf_document
+---
+
+Parameters are estimated by maximum likelihood using the algorithms available in the standard R $optim$ function. 
+
+A Weibull regression model assumes 
+$$log X=\mu+\gamma^TZ+\sigma W, W\sim S_W(x)=exp\{-exp(x)\} \tag{1}$$ 
+$X|Z$ follows Weibull distribution, with probability density function
+$$f(x)=\alpha\lambda_Z x^{\alpha-1}exp(-\lambda_Z x^\alpha) \tag{2}$$
+and survival function
+$$S_X(x|Z)=exp(-\lambda_ZX^\alpha) \tag{3}$$
+where $$\lambda_Z=exp\left[-\frac{\mu+\gamma^TZ}{\sigma}\right],\alpha=\frac{1}{\sigma}$$
+
+For right censored sample with $n$ observations, the likelihood function should be changed to
+$$L(x_1,...,x_n;k,\lambda)=\prod_{i:c_i=1}\alpha\lambda_Z x^{\alpha-1}exp(-\lambda_Z x^\alpha)\prod_{i:c_i=0}exp(-\lambda_ZX^\alpha) \tag{4}$$
+The log-likelihood function is
+$$l=lnL=\sum_{i:c_i=1}\left\{log[\alpha \lambda_ZX^{\alpha-1}]-\lambda_ZX^\alpha\right\}-\sum_{i:c_i=0}\lambda_ZX^\alpha\tag{5}$$
+
+## Estimates  
+
+Take derivatives of the log-likelihood with respect to $\mu,\sigma$ and $\gamma$. Set equations to zero, and solve them through iterative procedures. The BFGS optimization algorithm is the default in $flexsurvreg$. Method "BFGS" is a quasi-Newton method (also known as a variable metric algorithm), specifically that published simultaneously in 1970 by Broyden, Fletcher, Goldfarb and Shanno. This uses function values and gradients to build up a picture of the surface to be optimized. It uses the
+analytic derivatives of the likelihood with respect to the model parameters, if these are available, to improve the speed of convergence to the maximum.
+
+In $flexsurvreg$, the reported $shape$ is $\alpha=\frac{1}{\sigma}$, $scale$ is $\lambda_Z^{-\frac{1}{\alpha}}=exp(\mu+\gamma^TZ)$ and covariate effects $\gamma$ have the same “accelerated failure time” interpretation, as linear effects on $logX$.
+
+## Standard errors
+
+Standard errors are calculated via the observed Fisher information. Let $\theta=[\mu,\sigma,\gamma]$. The Hessian matrix of (5) is
+$$\mathbf{H}=\nabla^2\ l(x_1,\ldots x_n;\theta) =\nabla^2\ l(\theta) \tag{6}$$
+where,  
+$$\mathbf{H}_{i,j}=\frac{\partial^2 l(\theta)}{\partial\theta_i\partial\theta_j}  $$
+
+The observed Fisher information is
+$$\mathbf{I}\left(\hat{\theta}\right)=-\mathbf{H} \tag{7}$$ 
+A standard asymptotic approximation to the distribution of the MLE for large $N$ is a normal distribution with mean $\theta$ and variance 
+$\left[\mathbf{I}\left(\hat{\theta}\right)\right]^{-1}$.  
+Therefore, the standard errors of $\hat{\theta}$ are 
+$$\hat{se}\left(\hat{\theta}\right)= \left[\mathbf{I}\left(\hat{\theta}\right)\right]^{-\frac{1}{2}} \tag{8}$$
+The corresponding approximate 95% confidence intervals for $\theta$ is
+$$\hat{\theta}\pm 1.96 \left[\mathbf{I}\left(\hat{\theta}\right)\right]^{-\frac{1}{2}} \tag{9}$$ 
+

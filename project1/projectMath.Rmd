@@ -1,0 +1,73 @@
+---
+title: "521project"
+output: pdf_document
+---
+
+Parameters are estimated by maximum likelihood using the algorithms available in the standard R $optim$ function. 
+
+A Weibull regression model assumes 
+$$log X=\mu+\beta^TZ+\sigma W, W\sim S_W(x)=exp\{-exp(x)\} \tag{1}$$ 
+$X|Z$ follows Weibull distribution, with probability density function
+$$f(x)=\alpha\lambda_0 x^{\alpha-1}exp(-\lambda_0 x^\alpha) \tag{2}$$
+
+# No Censored Data
+
+## Shape (k) & Scale ($\lambda$) 
+
+### Estimate 
+The two-parameter Weibull distribution in R package $flexsurvreg$ is represented by the density function
+$$f(x)=\frac{k}{\lambda}(\frac{x}{\lambda})^{k-1}exp[-(\frac{x}{\lambda})^k] \tag{3}$$
+$$k,\lambda>0\ ; x\ge0$$
+
+where $k$ is the shape parameter and $\lambda$ is the scale parameter. $k=\alpha$ in (2) and $\lambda=\lambda_0^{-\alpha}$ in (2).
+
+The likelihood function of a sample with $n$ observations is
+$$L(x_1,...,x_n;k,\lambda)=\prod_{i=1}^n\frac{k}{\lambda}(\frac{x_i}{\lambda})^{k-1}exp[-(\frac{x}{\lambda})^k] \tag{4}$$
+The log-likelihood function is
+$$l=lnL=nln(k)-nln(\lambda)+(k-1)\sum_{i=1}^nln(x_i)-n(k-1)ln(\lambda)-\sum_{i=1}^n(\frac{x_i}{\lambda})^k\tag{5}$$
+Derivatives with respect to $k$ and $\lambda$ is
+$$\frac{\partial l}{\partial k}=\frac{n}{k}+\sum_{i=1}^nln(x_i)-nln(\lambda)-\frac{1}{\lambda^k}\sum_{i=1}^nx_i^k(lnx_i-ln\lambda) \tag{6}$$
+$$\frac{\partial l}{\partial \lambda}=-n\frac{k}{\lambda}+\frac{k}{\lambda^{k+1}}\sum x_i^k \tag{7}$$
+set (6)&(7) to 0  
+$$\frac{1}{k}=\frac{\sum_{i=1}^nx_i^kln(x_i)}{\sum_{i=1}^nx_i^k}-\frac{\sum _{i=1}^n ln(x_i)}{n} \tag{8}$$
+$$\lambda^k=\frac{\sum _{i=1}^nx_i^k}{n} \tag{9}$$
+We can get $\hat{k}$ by solving (8) through iterative procedures. The BFGS optimization algorithm is the default in $flexsurvreg$. Method "BFGS" is a quasi-Newton method (also known as a variable metric algorithm), specifically that published simultaneously in 1970 by Broyden, Fletcher, Goldfarb and Shanno. This uses function values and gradients to build up a picture of the surface to be optimized.  
+With $\hat{k}$ determined, then 
+$$\hat{\lambda}=\left( \frac{\sum_{i=1}^nx_i^{\hat k}}{n} \right)^ \frac{1}{\hat k}$$
+
+### Standard errors
+Let $\theta=[k,\lambda]$. The Hessian matrix of (5) is
+$$\mathbf{H}=\nabla^2\ l(x_1,\ldots x_n;k,\lambda) =\nabla^2\ l(\theta) \tag{10}$$
+Where,  
+$$\mathbf{H}_{11}=\frac{\partial^2 l(\theta)}{\partial^2 k}=-\frac{n}{k^2}-\sum (\frac{x_i}{\lambda})^k(ln\frac{x_i}{\lambda})^2 \tag{11} $$
+$$\mathbf{H}_{12}=\mathbf{H}_{21}=\frac{\partial^2 l(\theta)}{\partial k\partial \lambda}=-\frac{k}{\lambda}-\frac{1}{\lambda^{k+1}}(\sum x_i^k+k\sum x_i^kln\frac{x_i}{\lambda}) \tag{12} $$
+$$\mathbf{H}_{22}=\frac{\partial^2 l(\theta)}{\partial^2 \lambda}=-\frac{k(k+1)}{\lambda^{k+2}}\sum x_i^k+\frac{nk}{\lambda^2} \tag{13} $$
+The observed Fisher information is
+$$\mathbf{I}\left(k,\lambda\right)=-\mathbf{H} \tag{14}$$ 
+A standard asymptotic approximation to the distribution of the MLE for large $N$ is a normal distribution with variance 
+$Cov\left(\hat{k},\hat{\lambda}\right)=\left[\mathbf{I}\left(\hat{k},\hat{\lambda}\right)\right]^{-1}$.  
+Therefore, the standard errors of $\hat{k}$ and $\hat{\lambda}$ are 
+$$\hat{se}\left(\hat{k},\hat{\lambda}\right)= \left[\mathbf{I}\left(\hat{k},\hat{\lambda}\right)\right]^{-\frac{1}{2}} \tag{15}$$
+The corresponding approximate 95% confidence intervals for $\theta$ is
+$$\hat{\theta}\pm 1.96 \left[\mathbf{I}\left(\hat{k},\hat{\lambda}\right)\right]^{-\frac{1}{2}} \tag{16}$$ 
+
+## Covariate effects ($\beta$)
+### Estimate
+$X|Z$ follows Weibull distribution with parameter derived from above formulas. With the method of generalized weighted least-square, we can compute the MLE of covariate $\beta$.  
+Let $Y=logX$. Given a symmetric weight matrix $\mathbf{V}$, which equals to $\sigma^{-1}W^{-1}$ in (1), we get
+$$Y = Z\beta+\mathbf{V}$$ 
+The solution of $\underset{\beta}{\operatorname{argmin}}(Y-Z\beta)^T\mathbf{V}(Y-Z\beta)$ is
+$$\hat{\beta}=(Z^T\mathbf{V}Z)^{-1}Z^T\mathbf{V}Z \tag{17}$$  
+
+### Standard errors
+The corresponding variance is
+$$Cov(\hat{\beta})=[(Z^T\mathbf{V}Z)^{-1}Z^T\mathbf{V}]\sigma W[\mathbf{V}^TZ(Z^T\mathbf{V}^TZ)^{-1}] \tag{18}$$
+Therefore the standard error of $\hat{\beta}$ is $Cov(\hat{\beta})^{\frac{1}{2}}$
+
+# Right Censored Data
+For right censored sample with $n$ observations, the likelihood function should be changed to
+$$L(x_1,...,x_n;k,\lambda)=\prod_{i:c_i=1}\frac{k}{\lambda}(\frac{x_i}{\lambda})^{k-1}exp[-(\frac{x_i}{\lambda})^k]\prod_{i:c_i=0}exp(-(\frac{x_i}{\lambda})^k) \tag{19}$$
+The log-likelihood function is
+$$l=lnL=\sum_{i:c_i=1}\left\{log[\frac{k}{\lambda}(\frac{x_i}{\lambda})^{k-1}]-(\frac{x_i}{\lambda})^k\right\}-\sum_{i:c_i=0}(\frac{x_i}{\lambda})^k\tag{20}$$
+
+The method to derive the maximum likelihood estimations for parameters $k,\lambda,\beta$ is the same as that for no censoring data, so as the method for calculating standard errors and confidence intervals for these parameters.
