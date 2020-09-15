@@ -39,12 +39,7 @@ At the end, we conduct a log-linear Weibull survival model to address the shortc
 Our goal is to develop a model to quantify the relationship between time to death and certain predictors in our data.
 The effect of the drug D-penicillamine on time to PBC death is of particular interest.
 This model can then be used for statistical inference of the model parameters, as well as prediction of time to death for future observations.
-We take four different approaches to analyze the survival data.
-
-1. A linear model that excludes all censored observations from the analysis
-2. A linear model but treats all censored times as death times
-3. A logistic regression, where the binary outcome is either death, or censorship
-4. A log-linear Weibull regression that addresses the censoring nature of the survival data in the likelihood
+We take four different approaches to analyze the survival data: a linear model that excludes all censored observations from the analysis, a linear model but treats all censored times as death times, a logistic regression, where the binary outcome is either death, or censorship, a log-linear Weibull regression that addresses the censoring nature of the survival data in the likelihood.
 
 Each regression was run multiple times on the same sets of predictors.
 The sets consist of three univariate analyses on the predictors administered drug type (D-penicillamine vs. Placebo), age in years, and level of serum bilirubin in mg/dL as a categorical variable, and one multivariate analysis including all three predictors.
@@ -78,10 +73,7 @@ data$ageinyear <- data$age/365.25
 ## Linear Regression
 
 Here we will analyze the results of the initial linear regression on the survival data under two scenarios:
-
-* i) complete exclusion of censored data 
-* ii) treating the time of censorship as time of death.
-
+complete exclusion of censored data and treating the time of censorship as time of death.
 Our initial analysis of the data after input and cleaning shows that we have 187 patients alive at the end of the study and 125 patients who died at the end of the study ($\delta(0 = \text{alive},\, 1 = \text{dead})$).
 Our initial analysis also shows the distribution of serum bilirubin levels impacting survival among the patients with 116 patients having less than 1.1 mg/dL serum bilirubin, 113 patients having between 1.1 to 3.3 mg/dL of serum bilirubin, and 83 patients having greater than 3.3 mg/dL. 
 
