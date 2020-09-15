@@ -8,7 +8,6 @@ output:
     toc: true
     toc_depth: 2
     number_sections: true
-  word_document: default
 ---
 
 ```{r include = FALSE}
@@ -20,32 +19,35 @@ knitr::opts_chunk$set(
   fig.align = "center"   # center figures
 )
 library(flexsurv)
-library(ggplot2)
+library(tidyverse)
 library(mice)
 set.seed(1)             # make random results reproducible
 ```
 
 \newpage
 
-# Standard Regression techniques questions
+# Introduction
+From 1974 to 1984, a randomized placebo-controlled Mayo Clinic trial was conducted to investigate the effect of the drug D-penicillamine on the mortality of 424 patients diagnosed with primary biliary cirrhosis (PBC) of the liver.
+Right censorship due to surviving or receiving a liver transplant is present in the data.
+More details can be found in the original text by Fleming and Harrington that includes this dataset (Counting Processes and Survival Analysis, Wiley, 1991).
+In this report we develop a regression model to describe the time to death as a function of treatment, accounting for age and serum bilirubin levels.
+We first implement a suggestion from a fictional collaborator, Dr. Blum, to use linear and logistic regression models to analyze the survival data.
+At the end, we conduct a log-linear Weibull survival model to address the shortcomings of the linear and logistic approaches. 
 
-* Dr. Blum is interested in survival times of patients and would like to know the impact of treatment, age, and serum bilirubin as a categorical variable (<1.1, 1.1-3.3, and >3.3) on survival.
-  + Use a linear model after excluding all censored observations 
-  + Use a linear model after treating censored times as death times
-  + Use a logistic regression by defining a new outcomes as dead=1 and otherwise (survived or censored) as 0. 
-* For each of above models perform univariate and multivariate analyses(for the three covariates above).
-* Interpret the estimates of coefficients of treatment, age, and serum bilirubin regardless of their significance. 
-* Now comment on the appropriateness of the data analyses Dr. Blum suggested. A critique. 
 
-# Survival Regression techniques questions
+# Methods
+Our goal is to develop a model to quantify the relationship between time to death and certain predictors in our data.
+The effect of the drug D-penicillamine on time to PBC death is of particular interest.
+This model can then be used for statistical inference of the model parameters, as well as prediction of time to death for future observations.
+We take four different approaches to analyze the survival data: a linear model that excludes all censored observations from the analysis, a linear model but treats all censored times as death times, a logistic regression, where the binary outcome is either death, or censorship, a log-linear Weibull regression that addresses the censoring nature of the survival data in the likelihood.
 
-* Now perform a parametric survival analysis (Weibull) and conduct the same univariate and multivariate analyses. Report same results for interpreting coefficients. 
-* Dr. Blum wants to know how to derive the i) estimates ii) standard errors of the coefficients that R outputs from the regression. What is the procedure? How can Dr. Blum recreate them herself? Attach this techinical section as an appendix to the report.
+Each regression was run multiple times on the same sets of predictors.
+The sets consist of three univariate analyses on the predictors administered drug type (D-penicillamine vs. Placebo), age in years, and level of serum bilirubin in mg/dL as a categorical variable, and one multivariate analysis including all three predictors.
+The model with the lowest Akaike information criterion (AIC), a measure of in-sample fit that adjusts for model complexity, is selected as the best performing model for describing the dataset and future predictive accuracy.
 
-# Analysis of the linear regression
-## Data input and cleaning
+# Results
 
-```{r}
+```{r data input and cleaning}
 # Reading in data
 data <- read.table("data.csv", 
                    quote="\"", comment.char="")
@@ -58,141 +60,680 @@ colnames(data) <- c("caseid", "time", "status", "drug", "age", "sex", "ascites",
 
 # Combining censored cases
 data$dead <- ifelse(data$status == 0 | data$status == 1, 0, 1)
-table(data$dead)
 
-# Creating catergorical factor for bilirubin
+# Creating categorical factor for bilirubin
 data$bili_cat <- ifelse(data$bilirubin < 1.1, "< 1.1", 
                         ifelse(data$bilirubin >= 1.1 & data$bilirubin <= 3.3, "1.1-3.3", ">3.3"))
 data$bili_cat <- factor(data$bili_cat, levels = c("< 1.1", "1.1-3.3", ">3.3"))
-table( data$bili_cat)
 
 # Creating age in years
 data$ageinyear <- data$age/365.25
 ```
 
-## Excluding censored observations
+## Linear Regression
+
+Here we will analyze the results of the initial linear regression on the survival data under two scenarios:
+complete exclusion of censored data and treating the time of censorship as time of death.
+Our initial analysis of the data after input and cleaning shows that we have 187 patients alive at the end of the study and 125 patients who died at the end of the study ($\delta(0 = \text{alive},\, 1 = \text{dead})$).
+Our initial analysis also shows the distribution of serum bilirubin levels impacting survival among the patients with 116 patients having less than 1.1 mg/dL serum bilirubin, 113 patients having between 1.1 to 3.3 mg/dL of serum bilirubin, and 83 patients having greater than 3.3 mg/dL. 
+
+Our linear models use the following general format,
+$$
+Y = \beta_{0} + \beta^{\top} \mathbf{X} + \epsilon, \quad \text{where } \epsilon \sim N(0, \sigma^2)
+$$
+
+The coefficients in linear regression represent how the response variable changes with a unit increase for the given parameter, given all other parameters remain constant.
+Specific values and interpretations of regression coefficients will be presented in Section 7: Supplementary Tables and Figures.
+
+### Excluding censored observations
+
+#### Univariate regressions on treatment (drug), age (in years), and serum bilirubin (mg/dL)
+Univariate linear regression models were separately fit to model survival time using treatment (drug), age (in years), and serum bilirubin (mg/dL) as predictors.
+For these models, censored observations were excluded from the data set and we were left with 125 observations.
+Supplementary Tables 1-3 organize the results of these regressions.
+
+We determine that the linear regression coefficients $\beta_{\text{drug}}$ and $\beta_{\text{age}}$ for treatment and age, respectively, both do not represent the difference in mean survival time between the placebo and treatment groups with statistical significance, when all other factors are held constant.
+We do not have enough evidence to conclude that either of the covariates are statistically significant predictors of survival due to their p-values being larger than the prespecified confidence level of $\alpha = 0.05$ (treatment p-value: $0.6474$; age p-value: $0.05945$).
+This conclusion is further supported by the adjusted $R^2$ values for each regression being close to 0 (treatment adj. $R^2 = -0.00641$; age adj. $R^2 = 0.02069$).
+
+We determine that the linear regression coefficient $\beta_{\text{SB}}$ for serum bilirubin levels does represent the difference in mean survival time between the placebo and treatment groups with statistical significance, when all other factors are held constant.
+In other words, we do have enough evidence to conclude that serum bilirubin level is a statistically significant predictor of survival due to our p-value being smaller than our alpha value ($3.712 \times 10^{-6} < 0.05$) when we control for treatment effect, and age.
+Due to this, serum bilirubin levels (especially when the concentration is over 3.3 mg/dL) is the best predictor of survival compared to treatment and age.
+Our $R^2$ value is low (Adjusted $R^2 = 0.172$) which suggests that the model has very small amount of explanation towards our response variable. 
+Therefore, it is strongly recommended to use a different modeling technique to predict survival due to survival analysis data not being truly linear.
+
+<!--
+#### Regression on treatment (drug)
+From Table 1, we determine that the linear regression coefficient ($\beta_{drug}$) for the treatment (drug) does not represent the difference in mean survival time between the placebo group and treatment group with statistical significance, when all other factors are held constant.
+In other words, we do not have enough evidence to conclude that the covariate of treatment (drug) effect is a statistically significant predictor of survival due to our p-value being larger than our alpha value ($0.6474 > 0.05$) when we control for age, and serum bilirubin levels.
+This is further supported by our $R^2$ value being negative (Adjusted $R^2 = -0.00641$) which suggests that the model has negligible explanation towards our response variable.  
+
+#### Regression on age
+From Table 2, we determine that the linear regression coefficient ($\beta_{\text{age}}$) for age (measured in years) does not represent the difference in mean survival time between the placebo group and treatment group with statistical significance, when all other factors are held constant.
+In other words, we do not have enough evidence to conclude that the covariate of age is a statistically significant predictor of survival due to our p-value being larger than our alpha value ($0.05945 > 0.05$) when we control for treatment effect, and serum bilirubin levels.
+This is further supported by our $R^2$ value being close to zero (Adjusted $R^2 = 0.02069$) which suggests that the model has very small amount of explanation towards our response variable.
+However, it is important to note that age is a better predictor of survival time than the treatment. 
+
+#### Regression on serum bilirubin 
+From Table 3, we determine that the linear regression coefficient ($\beta_{\text{serum bilirubin}}$) for serum bilirubin levels (measured in mg/dL) does represent the difference in mean survival time between the placebo group and treatment group with statistical significance, when all other factors are held constant.
+In other words, we do have enough evidence to conclude that the covariate of serum bilirubin level is a statistically significant predictor of survival due to our p-value being smaller than our alpha value ($3.712 \times 10^{-6} < 0.05$) when we control for treatment effect, and age.
+Due to this, serum bilirubin levels (especially when the concentration is over 3.3 mg/dL) is the best predictor of survival compared to treatment and age.
+Our $R^2$ value is low (Adjusted $R^2$ = 0.172) which suggests that the model has very small amount of explanation towards our response variable. 
+Therefore, it is strongly recommended to use a different modeling technique to predict survival due to survival analysis data not being truly linear.
+-->
+
+#### Regression using all three covariates
+From Supplementary Table 4, we determine that all three linear regression coefficients ($\beta_{\text{drug}} + \beta_{\text{age}} + \beta_{\text{SB}}$) taken together does represent the difference in mean survival time between the placebo group and treatment group with statistical significance.
+In other words, we do have enough evidence to conclude that the all three covariates can be used together with statistical significance to predict survival due to our p-value being smaller than our alpha value ($1.533 \times 10^{-6} < 0.05$).
+Our $R^2$ value is low (Adjusted $R^2 = 0.2099$) which suggests that the model has very small amount of explanation towards our response variable.
+Therefore, it is strongly recommended to use a different modeling technique to predict survival due to survival analysis data not being truly linear.
+
+
+If the aim is to reduce the number of covariates in the linear regression model to strive for the most parsimonious model, then it is recommended to remove the treatment (drug) and potentially the age covariates.
+Treatment has not shown to be significant in any of the models that have been fit so we can remove it from the final model equation.
+Age by itself was not statistically significant but taken with the other covariates it is significant so this would require more investigation.
+The final model would be written as  $Y = \beta_{0} + \beta_{\text{SB}} X_{\text{SB}} + \epsilon,\; \text{where } \epsilon \sim N(0, \sigma^2)$ and the intercept is time. 
+
+### Treating censored times as death times
+
+#### Univariate regressions on treatment (drug), age (in years), and serum bilirubin (mg/dL)
+Univariate linear regression models were separately fit to model survival time using treatment (drug), age (in years), and serum bilirubin (mg/dL) as predictors.
+For these models, censored observations were treated like death times and we had 312 observations.
+Supplementary Tables 5-7 organize the results of these regressions.
+
+We determine that the linear regression coefficient $\beta_{\text{drug}}$ for the treatment does not represent the difference in mean survival time between the placebo group and treatment group with statistical significance, when we treat censored times as death times and we hold all other factors constant.
+Even after we treat censored times as death times, we do not have enough evidence to conclude that the covariate of treatment (drug) effect is a statistically significant predictor of survival due to our p-value being larger than our alpha value ($0.883 > 0.05$) when we control for age, and serum bilirubin levels.
+Furthermore, our $R^2$ value is close to 0 (Adjusted $R^2 = 0.0147$) which suggests that the model has very small amount of explanation towards our response variable.
+Therefore, it is strongly recommended to use a different modeling technique to predict survival. 
+
+We determine that the linear regression coefficients $\beta_{\text{age}}$ and $\beta_{\text{SB}}$ for age and serum bilirubin levels, respectively, do represent the difference in mean survival time between the placebo group and treatment group with statistical significance, when including censored observations and holding all other factors constant.
+There is enough evidence to conclude that both covariates of age and serum bilirubin levels are statistically significant predictors of survival due to their p-value being smaller than our prespecified confidence level of $\alpha = 0.05$ (age p-value: $0.0182$; serum bilirubin p-value: $2.2 \times 10^{-16}$) when we control for treatment, and age.
+However, both adjusted $R^2$ values are low (age adj. $R^2 = 0.0147$; serum bilirubin adj $R^2 = 0.2176$) which suggests that both models have little explanatory power towards our response variable.
+Therefore, it is strongly recommended to use a different modeling technique to predict survival. 
+<!--
+#### Regression on treatment (drug)
+From Table 5, we determine that the linear regression coefficient ($\beta_{\text{drug}}$) for the treatment (drug) does not represent the difference in mean survival time between the placebo group and treatment group with statistical significance, when we treat censored times as death times and we hold all other factors constant.
+In other words, after we treat censored times as death times, we do not have enough evidence to conclude that the covariate of treatment (drug) effect is a statistically significant predictor of survival due to our p-value being larger than our alpha value ($0.883 > 0.05$) when we control for age, and serum bilirubin levels.
+This is further supported by our $R^2$ value being negative (Adjusted $R^2 = -0.003156$) which suggests that the model has negligible explanation towards our response variable. 
+
+#### Regression on age
+From Table 6, we determine that the linear regression coefficient ($\beta_{\text{age}}$) for the age (measured in years) does represent the difference in mean survival time between the placebo group and treatment group with statistical significance, when we treat censored times as death times and we hold all other factors constant.
+In other words, after we treat censored times as death times, we do have enough evidence to conclude that the covariate of age is a statistically significant predictor of survival due to our p-value being smaller than our alpha value ($0.0182 < 0.05$) when we control for treatment, and serum bilirubin levels.
+Our $R^2$ value is close to 0 (Adjusted $R^2 = 0.0147$) which suggests that the model has very small amount of explanation towards our response variable.
+Therefore, it is strongly recommended to use a different modeling technique to predict survival. 
+
+#### Regression on serum bilirubin
+From Table 7, we determine that the linear regression coefficient ($\beta_{\text{serum bilirubin}}$) for serum bilirubin levels (measured in mg/dL) does represent the difference in mean survival time between the placebo group and treatment group with statistical significance (for both 1.1-3.3 mg/dL and >3.3 mg/dL levels), when we treat censored times as death times and we hold all other factors constant.
+In other words, after we treat censored times as death times, we do have enough evidence to conclude that the covariate of serum bilirubin levels is a statistically significant predictor of survival due to our p-value being smaller than our alpha value ($2.2 \times 10^{-16} < 0.05$) when we control for treatment, and age.
+Our $R^2$ value is low (Adjusted $R^2 = 0.2176$) which suggests that the model has very small amount of explanation towards our response variable.
+Therefore, it is strongly recommended to use a different modeling technique to predict survival. 
+-->
+
+#### Regression on all three covariates
+From Supplementary Table 8, we determine that all three linear regression coefficients ($\beta_{\text{drug}} + \beta_{\text{age}} + \beta_{\text{serum bilirubin}}$) taken together does represent the difference in mean survival time between the placebo group and treatment group with statistical significance when we treat censored times as death times.
+In other words, after we treat censored times as death times, we do have enough evidence to conclude that the all three covariates can be used together with statistical significance to predict survival due to our p-value being smaller than our alpha value ($2.2 \times 10^{-16} < 0.05$).
+Our $R^2$ value is low (Adjusted $R^2 = 0.2283$) which suggests that the model has very small amount of explanation towards our response variable.
+Due to this being the largest $R^2$ value from all of the previous models, this is the best performing linear regression model in terms of capturing as much explanation of the response with the covariates. 
+
+If the aim is to reduce the number of covariates in the linear regression model to strive for the most parsimonious model, then it is recommended remove the treatment (drug) covariate.
+Treatment has not shown to be significant in any of the models that treats censored times as death times so we can remove it from the final model equation. 
+The final model would be written as $Y = \beta_0 + \beta_{\text{age}} X_{\text{age}} + \beta_{\text{serum bilirubin}} X_{\text{serum bilirubin}} + \epsilon,\; \text{where } \epsilon \sim N(0, \sigma^{2})$ and the intercept is time. 
+
+
+## Logistic Regression
+As in Section 4.1, we will analyze the results of the logistic regression models on the survival data.
+Our logistic regression models use the general format,
+$$
+Y_{i} \sim \text{Bernoulli}(p_{i}) \qquad \qquad
+\log \left( \frac{p_{i}}{1 - p_{i}} \right)
+  = \beta_0 + \sum^{p}_{k = 1}{\beta_{k} x_{ki}}.
+$$
+
+In logistic regression, a coefficient value represents the change in the log odds when the covariate is increased by 1.
+Specific values of coefficients and their interpretations for each model will be discussed in Section 7: Supplementary Tables and Figures.
+
+### Univariate regressions on treatment (drug), age (in years), and serum bilirubin (mg/dL)
+Univariate logistic regression models were separately fit to model survival time using treatment (drug), age (in years), and serum bilirubin (mg/dL) as predictors.
+For these models, censored observations were treated like death times and we had 312 observations.
+Supplementary Tables 9-11 organize the results of these regressions.
+
+When all other factors are held constant, we determine that the logistic regression coefficient for treatment does not represent the change in the log odds with statistical significance.
+In other words, we do not have enough evidence to conclude that treatment is a statistical significant predictor of survival time when modeled with logistic regression due to our p-value being larger than our prespecified confidence level of $\alpha = 0.05$ (treatment p-value: $0.695$) when we control for age and serum bilirubin levels.
+The model produces the largest Akaike’s information criteria (AIC = $423.97$) out of the models that we fit for logistic regression.
+
+We determine that the logistic regression coefficients for age and serum bilirubin levels do represent a statistically significant change in log odds when all other factors are held constant.
+The effects of age and serum bilirubin levels, when modeled with logistic regression, produce p-values smaller than the prespecified confidence level (age p-value: `r 1.81e-05`; serum bilirubin p-value: `r 6.84e-06`) when we control for other covariates.
+Both models produce large AIC values when fit (age AIC: $404.3$; serum bilirubin AIC: $354.73$), thus we suggest alternative methods to model this interaction.
+
+<!--
+### Regression on treatment (drug)
+From Table 9, we determine that the logistic regression coefficient for the treatment (drug) does not represent the difference in the change in the log odds when I increase the covariate value by 1 with statistical significance, when all other factors are held constant.
+In other words, we do not have enough evidence to conclude that the covariate of treatment (drug) effect is a statistically significant predictor of survival when modeled with logistic regression due to our p-value being larger than our alpha value ($0.695 > 0.05$) when we control for age, and serum bilirubin levels.
+The model produces the largest Akaike’s information criteria (AIC = 423.97) out of the models that we fit for logistic regression so we will choose a different final model. 
+
+### Regression on age
+From Table 10, we determine that the logistic regression coefficient for the age does represent the difference in the change in the log odds when I increase the covariate value by 1 with statistical significance, when all other factors are held constant.
+In other words, we do have enough evidence to conclude that the age effect is a statistically significant predictor of survival when modeled with logistic regression due to our p-value being smaller than our alpha value ($1.81 \times 10^{-5} < 0.05$) when we control for treatment and serum bilirubin levels.
+The model produces a large Akaike’s information criterion (AIC = 404.3) when fit for logistic regression so we will choose a different final model. 
+
+### Regression on serum bilirubin
+From Table 11, we determine that the logistic regression coefficient for the age does represent the difference in the change in the log odds when I increase the covariate value by 1 with statistical significance, when all other factors are held constant.
+In other words, we do have enough evidence to conclude that the serum bilirubin level is a statistically significant predictor of survival when modeled with logistic regression due to our p-value being smaller than our alpha value ($6.84 \times 10^{-6} < 0.05$ and $3.64 \times 10^{-14} < 0.05$) when we control for treatment and age.
+The model produces a large Akaike’s information criterion (AIC = 354.73) when fit for logistic regression so we will choose a different final model. -->
+
+### Regression on all three covariates
+From Supplementary Table 12, we determine that the logistic regression coefficient for all of the predictors taken together does represent  the change in the log odds with statistical significance.
+In other words, we do have enough evidence to conclude that all three covariates (when modeled with logistic regression) can be used together with statistical significance to predict survival due to our p-values being smaller than our alpha value of 0.05 (except the covariate for treatment).
+Our $R^2$ value is low (Adjusted $R^2 = 0.2283$) which suggests that the model has very small amount of explanation towards our response variable.
+This model produces the lowest Akaike’s information criterion (AIC = $335.33$) when fit for logistic regression so we will choose this model as the final model out of all the models previous stated to capture as much explanation of the response with the covariates.  
+
+
+Striving for a more parsimoniouss model, it is recommended to remove treatment as a covariate.
+Treatment has not shown to be significant in any of the models (linear regression or logistic regression) so it can be removed from the final model equation.  
+
+# Discussion
+
+## Critique
+Dr. Blum’s suggestion to conduct both linear and logistic regressions are good places to start but remain inappropriate methods to model the data from the trial.  
+
+The main reason is the models do not appropriately address the right censorship present in the data.
+A patient is right censored if the event is not directly observed during the study and all that is known is the time to event is bounded below by the censorship time.
+In this dataset, patients are censored due to still being alive by the end of the ten-year study period, or due to receiving a liver transplant.
+The standard linear and logistic regression model objects in R do not address this issue (though it is still possible to incorporate censoring into estimation); therefore, estimation of the model parameters is based on a data likelihood that is not reflective of the actual information present in the sample.
+In the linear regression, we made some modifications to the response variable to get around this issue.
+However, excluding censored observations is not an efficient use of the entire dataset, and treating the censored time as the death times is fundamentally incorrect because deaths were never observed for those patients.
+An ideal model would encode the true state of information present in the dataset into the likelihood. 
+
+The fit statistics, particularly the $R^2$ in the linear models which intuitively can be interpreted as the percentage of total variation in the data that is explained by the model, is very low at 0.23 even for the multivariate linear model.
+The linear model does not do a good job of describing changes in time to event between patients that are present in our data.  
+
+There are other technical shortcomings of the linear and logistic approaches.
+In the linear model, each patient’s time to death is assumed to follow a normal distribution, so the range of values is the entire real line.
+However, time to death should be nonnegative and the linear model does not restrict the response to the proper space.
+The logistic regression is also unsatisfactory because we are interested in a different response variable than what the logistic regression models.
+Our dataset provides us with rich information on time to death which we can use to estimate a survival curve, but a logistic regression models binary outcome which can be considered a summary of the time to death, and a survival function would not be possible.
+Therefore, the basic model formulation of a logistic regression does not fully address the question that we are looking to answer: How does the treatment affect the time to death among PBC patients? 
+
+## Parametric Survival Analysis
+We conduct a parametric Weibull survival analysis from the `flexsurvreg` R package on the data to address the shortcomings from the earlier analysis using the same combination of predictors as before.
+This model assumes that each patient’s time to death follows a nonnegative Weibull distribution.
+Specifically, the log of the scale parameter is assumed to be a linear function of our covariates, and the shape parameter is assumed to be constant.
+Right censoring is now also incorporated when conducting maximum likelihood estimation (MLE), contrary to the earlier models.
+More details on estimation of Weibull survival models can be found in the technical appendix, including steps to derive the mean and standard error of each of the estimated parameters.  
+
+The best performing model based on lowest AIC is the multivariate model with all three covariates.
+We focus on this model for interpretation of the coefficient estimates. 
+The first two parameters in the regression output are the shape and scale.
+If a Weibull survival function is defined as 
+
+$$
+S(x) = \exp \left( -\frac{x}{\lambda}^{\alpha} \right),\quad x\geq 0 
+$$
+
+Then the shape corresponds to $\alpha$ and the scale corresponds to $\lambda$.
+This is exactly the notation used for the `dweibull` function in R, which is different from that used in class.
+The estimate corresponding to shape from the regression output is the estimate of the constant shape parameter $\alpha$ of our time to event Weibull distribution.
+However, the scale is assumed to vary by patient and is reparametrized so that its log is a linear function of the covariates.  
+
+$$
+\log(\lambda_i) = \mu + \beta^\top Z_i 
+$$
+
+With covariate values $Z_i$ for patient $i$ and model parameters $\mu$ and $\beta$.
+Therefore, the scale estimate in the regression output can be thought of as an intercept when all the covariate values $Z$ are set to 0, corresponding to a scale parameter value of $\lambda_0=\exp(\mu)$.
+In other words the patients in the treatment group that are age 0 and have serum bilirubin levels below 1.1 mg/dL have an estimated Weibull survival curve with a scale parameter of $\lambda=\exp(\mu)$.  
+
+The estimates for the rest of the parameters are the linear effect each of the three covariates have on $\log(\lambda)$.
+The estimate for the drug predictor is –0.167, which means the mean survival time of the placebo group is $\exp(-0.167) = 0.846$ of the treatment group, when all other covariate values are fixed.
+However, the confidence interval of the estimate overlaps 0, which is not compelling evidence that the drug has a significant effect on survival time.
+The estimate for the age in years is –0.029, meaning an increase in age of one year is associated with a decrease in mean survival time by a multiplicative factor of $\exp(-0.029) = 0.97$, a 3% decrease, so not a huge change between ages.
+Our data does span a large age range from 26 to 78 years, so our model may not accurately capture differences in the effect between younger ages and older ages.
+The serum 1.1-3.3 estimate tells us that the mean survival time of the serum 1.1-3.3 group is lower than the serum <1.1 group by a multiplicative factor of $\exp(-0.96) = 0.383$ or a 61.7% decrease.
+For the serum >3.3 estimate, the difference between the serum <1.1 group and the serum >3.3 group is a multiplicative factor of $\exp(-1.90)=0.15$, or a 85% decrease.
+
+The direction of each of the coefficients in this survival model is reasonable.
+The estimates tell us that mean survival time decreases for those in the placebo group, older patients, and patients with high serum bilirubin levels.
+The age and serum effects match with our preconceived notions of PBC mortality, and suggests there is weak evidence that the drug improves the prognosis within each age and serum level group.  
+
+One notable difference between the univariate analyses and the multivariate analysis is the direction of the effect of the treatment.
+The effects of age and serum bilirubin remain relatively unchanged between the univariate and multivariate models.
+However, In the univariate drug survival model, the placebo group is estimated to have an increased multiplicative effect compared to the treatment group on mean survival time of $\exp(0.04) = 1.043$, or a 4.3% increase.
+While this estimate is close to 1 and therefore does not suggest a strong effect, it is contrary to the multivariate model’s estimate of 0.846 / 15.4% decrease in mean survival time, where the placebo group has a shorter mean time to event.
+This result suggests that accounting for age and serum bilirubin levels helps alleviate potential confounding of the drug and time to event relationship.  
+
+# Conclusions
+In this analysis, we experimented with several regression approaches to model the time to PBC death as a function of treatment, age, and serum bilirubin levels.
+The linear and logistic models were unsatisfactory because the assumed distributions are not correct descriptions of time to event data, which is a continuous and nonnegative quantity.
+In addition, the linear and logistic models as used did not account for right censorship in the maximum likelihood estimation.  
+
+The Weibull survival model we run in the last section addresses these critical issues, and the model including all three covariates did the best job of capturing the variation in the data.
+This is supported by the multivariate model having the lowest AIC out of all survival models tested.
+We recommend that Dr. Blum use this for further research of the data in this trial.  
+
+\newpage
+# Appendix
+Parameters are estimated by maximum likelihood using the algorithms available in the standard R `optim` function. 
+
+A Weibull regression model assumes 
+
+$$
+log X=\mu+\gamma^TZ+\sigma W, W\sim S_W(x)=\exp\{-\exp(x)\}
+\tag{1}
+$$ 
+$X|Z$ follows Weibull distribution, with probability density function
+
+$$
+f(x)=\alpha\lambda_Z x^{\alpha-1}\exp(-\lambda_Z x^\alpha)
+\tag{2}
+$$
+and survival function
+
+$$
+S_X(x|Z)=\exp(-\lambda_ZX^\alpha)
+\tag{3}
+$$
+where $$\lambda_Z=\exp\left[-\frac{\mu+\gamma^TZ}{\sigma}\right],\alpha=\frac{1}{\sigma}$$
+
+For right censored sample with $n$ observations, the likelihood function should be changed to
+$$L(x_1,...,x_n;k,\lambda)=\prod_{i:c_i=1}\alpha\lambda_Z x^{\alpha-1}\exp(-\lambda_Z x^\alpha)\prod_{i:c_i=0}\exp(-\lambda_ZX^\alpha) \tag{4}$$
+The log-likelihood function is
+$$l=lnL=\sum_{i:c_i=1}\left\{\log[\alpha \lambda_ZX^{\alpha-1}]-\lambda_ZX^\alpha\right\}-\sum_{i:c_i=0}\lambda_ZX^\alpha\tag{5}$$
+
+## Estimates  
+
+Take derivatives of the log-likelihood with respect to $\mu,\sigma$ and $\gamma$. Set equations to zero, and solve them through iterative procedures. The BFGS optimization algorithm is the default in `flexsurvreg`. Method "BFGS" is a quasi-Newton method (also known as a variable metric algorithm), specifically that published simultaneously in 1970 by Broyden, Fletcher, Goldfarb and Shanno. This uses function values and gradients to build up a picture of the surface to be optimized. It uses the
+analytic derivatives of the likelihood with respect to the model parameters, if these are available, to improve the speed of convergence to the maximum.
+
+In `flexsurvreg`, the reported $shape$ is $\alpha=\frac{1}{\sigma}$, $scale$ is $\lambda_Z^{-\frac{1}{\alpha}}=\exp(\mu+\gamma^TZ)$ and covariate effects $\gamma$ have the same “accelerated failure time” interpretation, as linear effects on $\log X$.
+
+## Standard errors
+
+Standard errors are calculated via the observed Fisher information. Let $\theta=[\mu,\sigma,\gamma]$. The Hessian matrix of (5) is
+$$\mathbf{H}=\nabla^2\ l(x_1,\ldots x_n;\theta) =\nabla^2\ l(\theta) \tag{6}$$
+where,  
+$$\mathbf{H}_{i,j}=\frac{\partial^2 l(\theta)}{\partial\theta_i\partial\theta_j}  $$
+
+The observed Fisher information is
+$$\mathbf{I}\left(\hat{\theta}\right)=-\mathbf{H} \tag{7}$$ 
+A standard asymptotic approximation to the distribution of the MLE for large $N$ is a normal distribution with mean $\theta$ and variance 
+$\left[\mathbf{I}\left(\hat{\theta}\right)\right]^{-1}$.  
+Therefore, the standard errors of $\hat{\theta}$ are 
+$$\hat{se}\left(\hat{\theta}\right)= \left[\mathbf{I}\left(\hat{\theta}\right)\right]^{-\frac{1}{2}} \tag{8}$$
+The corresponding approximate 95% confidence intervals for $\theta$ is
+$$\hat{\theta}\pm 1.96 \left[\mathbf{I}\left(\hat{\theta}\right)\right]^{-\frac{1}{2}} \tag{9}$$ 
+
+
+### Covariate effects ($\beta$)
+#### Estimate
+$X|Z$ follows Weibull distribution with parameter derived from above formulas. With the method of generalized weighted least-square, we can compute the MLE of covariate $\beta$.  
+Let $Y = logX$. Given a symmetric weight matrix $\mathbf{V}$, which equals to $\sigma^{-1}W^{-1}$ in (1), we get
+
+$$
+Y = Z\beta+\mathbf{V}
+$$ 
+
+The solution of $\underset{\beta}{\operatorname{argmin}}(Y-Z\beta)^T\mathbf{V}(Y-Z\beta)$ is
+
+$$
+\hat{\beta}=(Z^T\mathbf{V}Z)^{-1}Z^T\mathbf{V}Z
+\tag{17}
+$$  
+
+#### Standard errors
+The corresponding variance is
+
+$$
+Cov(\hat{\beta})=[(Z^T\mathbf{V}Z)^{-1}Z^T\mathbf{V}]\sigma W[\mathbf{V}^TZ(Z^T\mathbf{V}^TZ)^{-1}] 
+\tag{18}
+$$
+
+Therefore the standard error of $\hat{\beta}$ is $Cov(\hat{\beta})^{\frac{1}{2}}$
+
+## Right Censored Data
+For right censored sample with $n$ observations, the likelihood function should be changed to
+
+$$
+L(x_1,...,x_n;k,\lambda) 
+    = \prod_{i:c_i=1} \frac{k}{\lambda} (\frac{x_i}{\lambda})^{k-1} \exp[-(\frac{x_i}{\lambda})^k] 
+        \prod_{i:c_i=0}\exp(-(\frac{x_i}{\lambda})^k)
+\tag{19}
+$$
+
+The log-likelihood function is
+
+$$
+\ell 
+    = \ln L 
+    = \sum_{i:c_i=1} 
+        \left\{ 
+            \log[\frac{k}{\lambda}(\frac{x_i}{\lambda})^{k-1}]-(\frac{x_i}{\lambda})^k
+        \right\}
+        - \sum_{i:c_i=0}(\frac{x_i}{\lambda})^k
+\tag{20}
+$$
+
+The method to derive the maximum likelihood estimations for parameters $k,\lambda,\beta$ is the same as that for no censoring data, so as the method for calculating standard errors and confidence intervals for these parameters.
+
+\newpage
+# Supplementary Tables and Figures
+
+## Linear Regression Models
+This part of the supplementary section goes over the results of the linear regression analysis conducted in section 3.1.
+The survival data was examined under two scenarios:
+
+* i) complete exclusion of censored data 
+* ii) treating the time of censorship as time of death.
+
+### Excluding censored observations
+In this section, the data used for the linear models excludes any censored data.
+As a result we have `r data %>% filter(dead == 1) %>% count()` observations.
+
+#### Regression on treatment (drug)
+```{r lm(time ~ drug) summary table}
+# univariate analysis for the treatment (drug)
+lm(time ~ drug, data = data[data$dead==1,]) %>% 
+  pander::pander(caption = "Linear regression results using treatment as the predictor")
+```
+
+Table 1 organizes the results of the linear regression of time $\sim$ treatment.
+This model had a multiple $R^2 = 0.001707$ and adjusted $R^2 = -0.00641$.
+The F-statistic was $F_{1, 123} = 0.2103$ with a p-value of $p = 0.6474$.
+
+In this model, $\beta_{\text{drug}} = -89.63$.
+This means being in the placebo group will decrease the survival time by $89.63$ days on average compared to being given D-penacillamine.
+However, because the p-value for this coefficient ($p = 0.647$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+
+#### Regression on age
+```{r lm(time ~ ageinyear) summary table}
+lm(time ~ ageinyear, data = data[data$dead==1,]) %>% 
+  pander::pander(caption = "Linear regression results using age as the predictor")
+```
+
+Table 2 organizes the results of the linear regression of time $\sim$ age.
+This model had a multiple $R^2 = 0.02858$ and adjusted $R^2 = 0.2069$.
+The F-statistic was $F_{1, 123} = 3.619$ with a p-value of $p = 0.05945$.
+
+In this model, $\beta_{\text{age}} = -18.199$.
+This means a year increase in age will decrease the survival time by $18.199$ days.
+However, because the p-value for this coefficient ($p = 0.0594$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+
+\newpage
+
+#### Regression on serum bilirubin
+```{r lm(time ~ bili_cat) summary table}
+lm(time ~ bili_cat, data = data[data$dead==1,]) %>% 
+  pander::pander(caption = "Linear regression results using serum bilirubin as the predictor")
+```
+
+Table 3 organizes the results of the linear regression of time $\sim$ serum bilirubin.
+This model had a multiple $R^2 = 0.1853$ and adjusted $R^2 = 0.172$.
+The F-statistic was $F_{2, 122} = 13.88$ with a p-value of $p =$ `r 3.712e-06`.
+
+In this model, $\beta_{\text{SB} \in [1.1, 3.3]} = -259.5$.
+This means if a person's serum bilirubin level is within 1.1 to 3.3 mg/dL it will decrease the survival time by $259.5$ days on average compared to people whose serum bilirubin levels are below 1.1 mg/dL.
+However, because the p-value for this coefficient ($p = 0.355$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+Furthermore, $\beta_{\text{SB} > 3.3} = -1111.1$.
+This means if a person's serum bilirubin level is greater than 3.3 mg/dL it will decrease the survival time by $1111.1$ days on average compared to people whose serum bilirubin levels are below 1.1 mg/dL.
+
+#### Regression on all three covariates
+```{r lm(time ~ drug + ageinyear + bili_cat) summary table}
+# multivariate analysis for all three covariates
+lm(time ~ drug + ageinyear + bili_cat, data = data[data$dead==1,]) %>% 
+  pander::pander(caption = "Linear regression results using treatment, age, and serum bilirubin as predictors")
+```
+
+Table 4 organizes the results of the linear regression of time $\sim$ treatment + age + serum bilirubin.
+This model had a multiple $R^2 = 0.2354$ and adjusted $R^2 = 0.2099$.
+The F-statistic was $F_{4, 120} = 13.88$ with a p-value of $p =$ `r 1.533e-06`.
+
+In this model, $\beta_{\text{drug}} = -144.27$.
+This means being in the placebo group will decrease the survival time by $144.27$ days on average compared to being given D-penacillamine.
+However, because the p-value for this coefficient ($p = 0.40982$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+For age, $\beta{\text{age}} = -23.98$.
+This means a year increase in age will decrease the survival time by $23.98$ days.
+For serum bilirubin, $\beta_{\text{SB} \in [1.1, 3.3]} = -336.07$ and $\beta_{\text{SB} > 3.3} = -1208.34$.
+This means if a person's serum bilirubin level is between 1.1 to 3.3 mg/dL then their survival time decreases by $336.07$ days on average compared to people whose serum bilirubin level is below 1.1 mg/dL.
+If a person's serum bilirubin level is greater than 3.3 mg/dL then their survival time decreases by $1208.34$ days on average compared to people whose serum bilirubin level is below 1.1 mg/dL.
+However, the p-value for $\beta_{\text{SB} \in [1.1, 3.3]}$ is greater than the prespecified confidence level $\alpha = 0.05$, thus this term is not statistically significant.
+Interpretations for each coefficient are are only relevent given that the other coefficients stay constant.
+
+### Treating censored times as death times
+In this section, the data used for the linear models treats censored data as equal to the death time.
+As a result we have `r data %>% count()` observations.
+
+#### Regression on treatment (drug)
+```{r lm(time ~ drug) summary table (censor as dead)}
+# univariate analysis for the treatment (drug)
+lm(time ~ drug, data = data) %>% 
+  pander::pander(caption = "Linear regression results using treatment as the predictor")
+```
+
+Table 5 organizes the results of the linear regression of time $\sim$ treatment.
+This model had a multiple $R^2 =$ `r 6.992e-05` and adjusted $R^2 = -0.003156$.
+The F-statistic was $F_{1, 310} = 0.02168$ with a p-value of $p = 0.883$.
+
+In this model, $\beta_{\text{drug}} = -18.76$.
+This means being in the placebo group will decrease the survival time by $18.76$ days on average compared to being given D-penacillamine.
+However, because the p-value for this coefficient ($p = 0.883$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+
+#### Regression on age
+
+```{r lm(time ~ ageinyear) summary table (censor as dead)}
+# univariate analysis for age
+lm(time ~ ageinyear, data = data) %>% 
+  pander::pander(caption = "Linear regression results using age as the predictor")
+```
+
+Table 6 organizes the results of the linear regression of time $\sim$ age.
+This model had a multiple $R^2 = 0.01787$ and adjusted $R^2 = 0.0147$.
+The F-statistic was $F_{1, 310} = 5.641$ with a p-value of $p = 0.01816$.
+
+In this model, $\beta_{\text{age}} = -14.191$.
+This means a year increase in age will decrease the survival time by $14.191$ days.
+
+#### Regression on serum bilirubin
+
+```{r lm(time ~ bili_cat) summary table (censor as dead)}
+# univariate analysis for serum bilirubin
+lm(time ~ bili_cat, data = data) %>% 
+  pander::pander(caption = "Linear regression results using serum bilirubin as the predictor")
+```
+
+Table 7 organizes the results of the linear regression of time $\sim$ serum bilirubin
+This model had a multiple $R^2 = 0.2226$ and adjusted $R^2 = 0.2176$.
+The F-statistic was $F_{2, 309} = 44.24$ with a p-value of $p < \epsilon_{\text{Machine}} =$ `r .Machine$double.eps %>% round(18)`.
+
+In this model, $\beta_{\text{SB} \in [1.1, 3.3]} = -397.73$.
+This means if a person's serum bilirubin level is within 1.1 to 3.3 mg/dL it will decrease the survival time by $397.73$ days on average compared to people whose serum bilirubin levels are below 1.1 mg/dL.
+Furthermore, $\beta_{\text{SB} > 3.3} = -1329.90$.
+This means if a person's serum bilirubin level is greater than 3.3 mg/dL it will decrease the survival time by $1329.90$ days on average compared to people whose serum bilirubin levels are below 1.1 mg/dL.
+
+#### Regression on all three covariates
+
+```{r lm(time ~ drug + ageinyear + bili_cat) summary table (censor as dead)}
+# multivariate analysis for all three covariates
+lm(time ~ drug + ageinyear + bili_cat, data = data) %>% 
+  pander::pander(caption = "Linear regression results using treatment, age, and serum bilirubin as predictors")
+```
+
+Table 8 organizes the results of the linear regression of time $\sim$ treatment + age + serum bilirubin.
+This model had a multiple $R^2 = 0.2382$ and adjusted $R^2 = 0.2283$.
+The F-statistic was $F_{4, 307} = 24$ with a p-value of $p < \epsilon_{\text{Machine}} =$ `r .Machine$double.eps %>% round(18)`.
+
+In this model, $\beta_{\text{drug}} = -40.120$.
+This means being in the placebo group will decrease the survival time by $40.120$ days on average compared to being given D-penacillamine.
+However, because the p-value for this coefficient ($p = 0.72337$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+For age, $\beta{\text{age}} = -13.394$.
+This means a year increase in age will decrease the survival time by $13.394$ days.
+For serum bilirubin, $\beta_{\text{SB} \in [1.1, 3.3]} = -400.348$ and $\beta_{\text{SB} > 3.3} = -1322.395$.
+This means if a person's serum bilirubin level is between 1.1 to 3.3 mg/dL then their survival time decreases by $400.348$ days on average compared to people whose serum bilirubin level is below 1.1 mg/dL.
+If a person's serum bilirubin level is greater than 3.3 mg/dL then their survival time decreases by $1322.395$ days on average compared to people whose serum bilirubin level is below 1.1 mg/dL.
+Interpretations for each coefficient are are only relevent given that the other coefficients stay constant.
+
+## Logistic Regression Models
 
 ### Regression on treatment (drug)
 
-```{r}
+```{r glm(dead ~ drug) summary table}
 # univariate analysis for the treatment (drug)
-summary(lm(time ~ drug, data = data[data$dead==1,]))
-```
-### Regression on age
-
-```{r}
-# univariate analysis for age
-summary(lm(time ~ ageinyear, data = data[data$dead==1,]))
-```
-### Regression on serum bilirubin
-
-```{r}
-# univariate analysis for serum bilirubin
-summary(lm(time ~ bili_cat, data = data[data$dead==1,]))
-```
-### Regression on all three covariates
-
-```{r}
-# multivariate analysis for all three covariates
-summary(lm(time ~ drug + ageinyear + bili_cat, data = data[data$dead==1,]))
+glm(dead ~ drug, family = "binomial", data = data) %>% 
+  pander::pander(caption = "Logistic regression results using treatment as the predictor")
 ```
 
-## Treating censored times as death times
+Table 9 organizes the results of the logistic regression of dead $\sim$ treatment.
+This model had an AIC of 423.97.
 
-### Regression on treatment (drug)
-
-```{r}
-# univariate analysis for the treatment (drug)
-summary(lm(time ~ drug, data = data))
-```
+In this model, $\beta_{\text{drug}} = -0.09074$.
+This means being in the placebo group will decrease the log odds of death by $0.09074$ on average compared to being given D-penacillamine.
+However, because the p-value for this coefficient ($p = 0.695$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
 
 ### Regression on age
 
-```{r}
+```{r glm(dead ~ ageinyear) summary table}
 # univariate analysis for age
-summary(lm(time ~ ageinyear, data = data))
+glm(dead ~ ageinyear, family = "binomial", data = data) %>% 
+  pander::pander(caption = "Logistic regression results using age as the predictor")
 ```
+
+Table 10 organizes the results of the logistic regression of dead $\sim$ age.
+This model had an AIC of 404.3.
+
+In this model, $\beta_{\text{age}} = 0.01177$.
+This means a year increase in age will increase the log odds of death by $0.01177$ on average.
 
 ### Regression on serum bilirubin
 
-```{r}
+```{r glm(dead ~ bili_cat) summary table}
 # univariate analysis for serum bilirubin
-summary(lm(time ~ bili_cat, data = data))
+glm(dead ~ bili_cat, family = "binomial", data = data) %>% 
+  pander::pander(caption = "Logistic regression results using serum bilirubin as the predictor")
 ```
+
+Table 11 organizes the results of the logistic regression of dead $\sim$ serum bilirubin
+This model had an AIC of 354.73.
+
+In this model, $\beta_{\text{drug}} = -0.09074$.
+This means being in the placebo group will decrease the log odds of death by $0.09074$ on average compared to being given D-penacillamine.
+However, because the p-value for this coefficient ($p = 0.695$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+
+In this model, $\beta_{\text{SB} \in [1.1, 3.3]} = 1.4587$.
+This means if a person's serum bilirubin level is within 1.1 to 3.3 mg/dL it will increase the log odds of death by $1.4587$ on average compared to people whose serum bilirubin levels are below 1.1 mg/dL.
+Furthermore, $\beta_{\text{SB} > 3.3} = 2.7208$.
+This means if a person's serum bilirubin level is greater than 3.3 mg/dL it will increase the log odds of death by $2.7208$ on average compared to people whose serum bilirubin levels are below 1.1 mg/dL.
 
 ### Regression on all three covariates
 
-```{r}
+```{r glm(dead ~ drug + ageinyear + bili_cat) summary table}
 # multivariate analysis for all three covariates
-summary(lm(time ~ drug + ageinyear + bili_cat, data = data))
+glm(dead ~ drug + ageinyear + bili_cat, family = "binomial", data = data) %>% 
+  pander::pander(caption = "Logistic regression results using treatment, age, and serum bilirubin as predictors")
 ```
 
-# Analysis of the logistic regression
+Table 12 organizes the results of the logistic regression of dead $\sim$ treatment + age + serum bilirubin.
+This model had an AIC of 335.33.
 
-### Regression on treatment (drug)
+In this model, $\beta_{\text{drug}} = 0.07332$.
+This means being in the placebo group will increase the log odds of death by $0.07332$ on average compared to being given D-penacillamine.
+However, because the p-value for this coefficient ($p = 0.791$) is greater than the prespecified confidence level $\alpha = 0.05$, this term is not statistically significant.
+For age, $\beta{\text{age}} = 0.06316$.
+This means a year increase in age will increase log odds of death by $0.06316$.
+For serum bilirubin, $\beta_{\text{SB} \in [1.1, 3.3]} = 1.56164$ and $\beta_{\text{SB} > 3.3} = 2.91444$.
+This means if a person's serum bilirubin level is between 1.1 to 3.3 mg/dL then their log odds of death increase by $1.56164$ days on average compared to people whose serum bilirubin level is below 1.1 mg/dL.
+If a person's serum bilirubin level is greater than 3.3 mg/dL then their log odds of death increases by $2.91444$ days on average compared to people whose serum bilirubin level is below 1.1 mg/dL.
+Interpretations for each coefficient are are only relevent given that the other coefficients stay constant.
 
-```{r}
-# univariate analysis for the treatment (drug)
-summary(glm(dead ~ drug, family = "binomial", data = data))
+## Parametric Survival Analysis
+```{r function to format flexsurvreg outputs}
+flexsurvreg_df_output <- function(flexsurvreg_output) {
+  flexsurvreg_output$res %>% 
+    as.data.frame() %>% 
+    select(est, se, everything())
+}
 ```
 
-### Regression on age
 
-```{r}
-# univariate analysis for age
-summary(glm(dead ~ ageinyear, family = "binomial", data = data))
-```
+### Parametric survival analysis on drug
 
-### Regression on serum bilirubin
-
-```{r}
-# univariate analysis for serum bilirubin
-summary(glm(dead ~ bili_cat, family = "binomial", data = data))
-```
-
-### Regression on all three covariates
-
-```{r}
-# multivariate analysis for all three covariates
-summary(glm(dead ~ drug + ageinyear + bili_cat, family = "binomial", data = data))
-```
-
-# Critique of Dr. Blum's analyses
-
-# Parametric survival analysis
-
-## Parametric survival analysis on drug
-
-```{r}
+```{r flexsurvreg(Surv(time, dead) ~ drug) summary table}
 # here we used library "flexsurv" for the analysis
 # univariate analysis for the treatment (drug)
-flexsurvreg(Surv(time, dead) ~ drug, data = data, dist = "Weibull")
+flexsurvreg(Surv(time, dead) ~ drug, data = data, dist = "Weibull") %>% 
+  flexsurvreg_df_output() %>% 
+  pander::pander(col.names = c("Estimate", "Std. Error", "L95%", "U95%"),
+                 caption = "Weibull survival analysis results using treatment as the predictor")
 ```
 
-## Parametric survival analysis on age
+Table 13 organizes the results of the Weibull regression of time $\sim$ treatment.
+The log-likelihood of -1178.718 with 3 degrees of freedom.
+This model had an AIC of 2383.436.
 
-```{r}
+In this model, $\beta_{\text{drug}} = 0.0418$.
+This means being in the placebo group decreases the hazard of death by `r exp(-1 * 0.0418) %>% round(4)` times compared to being given D-penacillamine.
+However because the 95% confidence interval contains 1 ($\lambda_{\text{drug}} \in [0.7025, 1.309]$), we cannot say that this coefficient is statistically significant at the predetermined confidence level of $\alpha = 0.05$.
+
+### Parametric survival analysis on age
+
+```{r flexsurvreg(Surv(time, dead) ~ ageinyear) summary table}
 # univariate analysis for age
-flexsurvreg(Surv(time, dead) ~ ageinyear, data = data, dist = "Weibull")
+flexsurvreg(Surv(time, dead) ~ ageinyear, data = data, dist = "Weibull") %>% 
+  flexsurvreg_df_output() %>% 
+  pander::pander(col.names = c("Estimate", "Std. Error", "L95%", "U95%"),
+                 caption = "Weibull survival analysis results using age as the predictor")
 ```
 
-## Parametric survival analysis on serum bilirubin
+Table 14 organizes the results of the Weibull regression of time $\sim$ age.
+The log-likelihood of -1178.773 with 3 degrees of freedom.
+This model had an AIC of 2363.467.
 
-```{r}
+In this model, $\beta_{\text{age}} =$ `r -3.44e-02`.
+This means a year increase in age increases the hazard of death by `r exp(-1 *-3.44e-02) %>% round(4)` times compared to someone just born ($\text{age}_{i} = 0$).
+
+### Parametric survival analysis on serum bilirubin
+
+```{r flexsurvreg(Surv(time, dead) ~ bili_cat) summary table}
 # univariate analysis for serum bilirubin
-flexsurvreg(Surv(time, dead) ~ bili_cat, data = data, dist = "Weibull")
+flexsurvreg(Surv(time, dead) ~ bili_cat, data = data, dist = "Weibull") %>% 
+  flexsurvreg_df_output() %>% 
+  pander::pander(col.names = c("Estimate", "Std. Error", "L95%", "U95%"),
+                 caption = "Weibull survival analysis results using serum bilirubin as the predictor")
 ```
 
-## Parametric survival analysis on all three covariates
+Table 15 organizes the results of the Weibull regression of time $\sim$ serum bilirubin.
+The log-likelihood of -1136.177 with 4 degrees of freedom.
+This model had an AIC of 2280.354.
 
-```{r}
+In this model, $\beta_{\text{SB} \in [1.1, 3.3]} =$ `r -9.43e-01`.
+This means a person's serum bilirubin level being between 1.1 and 3.3 mg/dL increases the hazard of death by `r exp(-1 * -9.43e-01) %>% round(4)` times compared to a person whose serum bilirubin level is less than 1.1 mg/dL.
+Furthermore, $\beta_{\text{SB} > 3.3} =$ `r -1.90e+00`.
+This means a person's serum bilirubin level being greater than 3.3 mg/dL increases the hazard of death by `r exp(-1 * -1.90e+00) %>% round(4)` times compared to a person whose serum bilirubin level is less than 1.1 mg/dL.
+
+### Parametric survival analysis on all three covariates
+
+```{r flexsurvreg(Surv(time, dead) ~ drug + ageinyear + bili_cat) summary table}
 # multivariate analysis for all three covariates
-flexsurvreg(Surv(time, dead) ~ drug + ageinyear + bili_cat, data = data, dist = "Weibull")
+flexsurvreg(Surv(time, dead) ~ drug + ageinyear + bili_cat, data = data, dist = "Weibull") %>% 
+  flexsurvreg_df_output() %>% 
+  pander::pander(col.names = c("Estimate", "Std. Error", "L95%", "U95%"),
+                 caption = "Weibull survival analysis results using treatment, age, and serum bilirubin as predictors")
 ```
 
-## Checking Weibull distribution is a good fit with log-log plot
+Table 16 organizes the results of the Weibull regression of time $\sim$ treatment + age + serum bilirubin.
+The log-likelihood of -1124.358 with 6 degrees of freedom.
+This model had an AIC of 2260.716.
 
-```{r}
+In this model, $\beta_{\text{drug}} =$ `r -1.67e-01`.
+This means being in the placebo group increases the hazard of death by `r exp(-1 * -1.67e-01) %>% round(4)` times compared to being given D-penacillamine.
+However because the 95% confidence interval contains 1 ($\lambda_{\text{drug}} \in [0.907, 1.539]$), we cannot say that this coefficient is statistically significant at the predetermined confidence level of $\alpha = 0.05$.
+For age, $\beta{\text{age}} =$ `r -2.92e-02`.
+This means a year increase in age increases the hazard of death by `r exp(-1 * -2.92e-02) %>% round(4)` times compared to someone just born ($\text{age}_{i} = 0$).
+For serum bilirubin, $\beta_{\text{SB} \in [1.1, 3.3]} =$ `r -9.60e-01` and $\beta_{\text{SB} > 3.3} =$ `r -1.90e+00`.
+This means a person's serum bilirubin level being between 1.1 and 3.3 mg/dL increases the hazard of death by `r exp(-1 * -9.60e-01) %>% round(4)` times compared to a person whose serum bilirubin level is less than 1.1 mg/dL.
+A person's serum bilirubin level being greater than 3.3 mg/dL increases the hazard of death by `r exp(-1 * -1.90e+00) %>% round(4)` times compared to a person whose serum bilirubin level is less than 1.1 mg/dL.
+Interpretations for each coefficient are are only relevent given that the other coefficients stay constant.
+
+### Checking Weibull distribution is a good fit with log-log plot
+
+```{r log-log plot}
 # Create cumulative hazard
 data$ch <- nelsonaalen(data, time, dead)
 data$drug <- ifelse(data$drug == 1, "treatment", "placebo")
@@ -205,14 +746,7 @@ ggplot(data, aes(log(time), log(ch))) +
   xlab("Log time (in days)") + 
   ggtitle("Check fit data to Weibull Distribution")
 ```
-The plot of log time against the log cumulative hazard is mostly linear in each of the treatment / serum bilirubin groups and deviates mostly at the earlier time points. Due to the linearity within each of the groups, we conclude the Weibull distribution is a good fit for this dataset. It is harder to visualize along with age (our third covariate), but based on this diagnostic it seems Weibull is a good fit regardless.
 
-# Technical Appendix: How to derive coefficient estimates and standard errors from parametric survival analyses
-
-\newpage
-
-# Code
-
-```{r ref.label = knitr::all_labels(), echo = TRUE, eval = FALSE}
-# this R markdown chunk generates a code appendix
-```
+The plot of log time against the log cumulative hazard is mostly linear in each of the treatment / serum bilirubin groups and deviates mostly at the earlier time points.
+Due to the linearity within each of the groups, we conclude the Weibull distribution is a good fit for this dataset.
+It is harder to visualize along with age (our third covariate), but based on this diagnostic it seems Weibull is a good fit regardless.
